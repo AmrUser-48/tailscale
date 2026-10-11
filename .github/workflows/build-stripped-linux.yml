@@ -52,19 +52,18 @@ jobs:
             | tee dist/tailscale-linux-amd64-stripped.tar.gz.sha256
 
           {
-            echo "## Stripped Tailscale build"
-            echo
-            echo "- Target: Linux amd64, GOAMD64=v1 (Core 2-compatible baseline)"
-            echo "- Build: official build_dist.sh with --box --strip"
-            echo "- CLI and daemon are in one binary; symlinks select the mode."
-            echo
-            echo "`$(du -h dist/tailscale.combined | cut -f1)` combined binary"
-            echo
-            echo "```"
+            printf '%s\n' '## Stripped Tailscale build'
+            printf '\n'
+            printf '%s\n' '- Target: Linux amd64, GOAMD64=v1 (Core 2-compatible baseline)'
+            printf '%s\n' '- Build: official build_dist.sh with --box --strip'
+            printf '%s\n' '- CLI and daemon are in one binary; symlinks select the mode.'
+            printf '\n'
+            printf '%s\n' "- Combined binary size: $(du -h dist/tailscale.combined | cut -f1)"
+            printf '\n'
+            printf '%s\n' 'File sizes:'
             ls -lh dist/tailscale.combined dist/tailscale-linux-amd64-stripped.tar.gz
-            echo "```"
-            echo
-            echo "Download the `tailscale-stripped-linux-amd64` artifact below."
+            printf '\n'
+            printf '%s\n' 'Download the tailscale-stripped-linux-amd64 artifact below.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload stripped binaries
