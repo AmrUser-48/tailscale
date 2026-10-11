@@ -1,0 +1,79 @@
+name: Build stripped Tailscale for Debian x86-64
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-stripped-linux.yml"
+      - "build_dist.sh"
+      - "go.mod"
+      - "go.sum"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build stripped CLI + daemon
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build one stripped binary with both CLI and daemon
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          # --box embeds the CLI in tailscaled; --strip removes DWARF and symbol tables.
+          # GOAMD64=v1 keeps compatibility with older x86-64 CPUs such as Intel Core 2.
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 \
+            ./build_dist.sh --box --strip -o dist/tailscale.combined tailscale.com/cmd/tailscaled
+
+          # The program selects CLI/daemon mode from argv[0].
+          ln -s tailscale.combined dist/tailscale
+          ln -s tailscale.combined dist/tailscaled
+
+          # Sanity-check both entry points before publishing the artifact.
+          ./dist/tailscale --help >/dev/null 2>&1
+          ./dist/tailscaled --help >/dev/null 2>&1
+
+          tar -C dist -czf dist/tailscale-linux-amd64-stripped.tar.gz \
+            tailscale.combined tailscale tailscaled
+          sha256sum dist/tailscale-linux-amd64-stripped.tar.gz \
+            | tee dist/tailscale-linux-amd64-stripped.tar.gz.sha256
+
+          {
+            echo "## Stripped Tailscale build"
+            echo
+            echo "- Target: Linux amd64, GOAMD64=v1 (Core 2-compatible baseline)"
+            echo "- Build: official build_dist.sh with --box --strip"
+            echo "- CLI and daemon are in one binary; symlinks select the mode."
+            echo
+            echo "`$(du -h dist/tailscale.combined | cut -f1)` combined binary"
+            echo
+            echo "```"
+            ls -lh dist/tailscale.combined dist/tailscale-linux-amd64-stripped.tar.gz
+            echo "```"
+            echo
+            echo "Download the `tailscale-stripped-linux-amd64` artifact below."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload stripped binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailscale-stripped-linux-amd64
+          path: |
+            dist/tailscale-linux-amd64-stripped.tar.gz
+            dist/tailscale-linux-amd64-stripped.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
